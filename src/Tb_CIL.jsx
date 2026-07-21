@@ -1,15 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import {
-  FileText, Bell, LogOut, Menu, Eye, X,
+  FileText, LogOut, Menu, Eye, X,
   Clock, CheckCircle2, XCircle,
   Shield, RefreshCw,
   BarChart3, ArrowUpRight, Inbox,
-  User, Building2, Database,
+  User, Database,
   Lock, Globe, Video, Search,
   Info, Layers, KeyRound,
-  CheckSquare, XSquare, AlertTriangle, MessageSquareWarning,
-  Send, ShieldAlert
+  CheckSquare, XSquare, AlertTriangle,
+  Download
 } from "lucide-react";
 
 // ═══════════════════════════════════════════════════════
@@ -101,9 +101,6 @@ const Badge = ({ type }) => {
     COLLECTE_SITE: { bg: T.tealBg, color: T.teal, border: T.tealBorder, label: "Site Internet" },
     VIDEO_SURVEILLANCE: { bg: T.purpleBg, color: T.purple, border: T.purpleBorder, label: "Vidéosurveillance" },
     AUTORISATION: { bg: T.yellowBg, color: T.yellow, border: T.yellowBorder, label: "Autorisation" },
-    RECUE: { bg: T.yellowBg, color: T.yellow, border: T.yellowBorder, label: "Reçue" },
-    EN_INSTRUCTION: { bg: T.blueBg, color: T.blue, border: T.blueBorder, label: "En instruction" },
-    CLOTUREE: { bg: T.greenBg, color: T.green, border: T.greenBorder, label: "Clôturée" },
   };
   const s = map[type] || { bg: T.grayBg, color: T.gray, border: T.grayBorder, label: type || "—" };
   return (
@@ -284,12 +281,11 @@ const TopBar = ({ onToggle, onLogout }) => (
 // ═══════════════════════════════════════════════════════
 //  SIDEBAR
 // ═══════════════════════════════════════════════════════
-const Sidebar = ({ active, setActive, collapsed, pendingCount, plaintesOuvertesCount }) => {
+const Sidebar = ({ active, setActive, collapsed, pendingCount }) => {
   const nav = [
     { id: "dashboard", label: "Tableau de bord", Icon: BarChart3 },
     { id: "a-verifier", label: "À vérifier", Icon: Inbox, badge: pendingCount },
     { id: "historique", label: "Historique", Icon: FileText },
-    { id: "plaintes", label: "Plaintes → DPO", Icon: MessageSquareWarning, badge: plaintesOuvertesCount },
   ];
   return (
     <aside style={{
@@ -398,7 +394,93 @@ const SectionBloc = ({ icon: Icon, color, bg, border, title, children }) => (
 );
 
 // ═══════════════════════════════════════════════════════
+//  EXPORT PDF — déclaration + décision CIL (utilisable depuis
+//  "À vérifier" comme depuis "Historique")
+// ═══════════════════════════════════════════════════════
+const exportDeclarationCilPDF = (d) => {
+  const statLabel = {
+    EN_ATTENTE: "En attente DG", EN_ATTENTE_DG: "En attente DG", APPROUVEE_DG: "Approuvée par la DG",
+    REJETEE_DG: "Rejetée par la DG", EN_VERIFICATION_CIL: "En vérification CIL",
+    VALIDEE_CIL: "Validée conforme (CIL)", REJETEE_CIL: "Rejetée non conforme (CIL)",
+    BROUILLON: "Brouillon", APPROUVEE: "Approuvée", REJETEE: "Rejetée",
+  };
+  const typeLabel = { NORMALE: "Déclaration Normale", COLLECTE_SITE: "Collecte via Site Internet", VIDEO_SURVEILLANCE: "Système de Vidéosurveillance", AUTORISATION: "Demande d'Autorisation" };
+  const date = new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const isConforme = d.statut === "VALIDEE_CIL";
+  const isRejete = d.statut === "REJETEE_CIL";
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8">
+<title>Déclaration #${d.idDeclaration} — Décision CIL</title>
+<style>
+  body{font-family:'Segoe UI',sans-serif;margin:0;padding:0;color:#0F1D2E;font-size:13px;}
+  .page{max-width:800px;margin:0 auto;padding:40px;}
+  .header{background:#0F1D2E;color:#fff;padding:28px 32px;border-radius:8px 8px 0 0;}
+  .header h1{margin:0 0 6px;font-size:22px;font-weight:800;}
+  .header p{margin:0;opacity:0.7;font-size:12px;}
+  .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;margin-top:10px;}
+  .badge-green{background:#F0FDF4;color:#15803D;border:1px solid #86EFAC;}
+  .badge-red{background:#FEF2F2;color:#B91C1C;border:1px solid #FECACA;}
+  .badge-purple{background:#F5F3FF;color:#6D28D9;border:1px solid #C4B5FD;}
+  .badge-yellow{background:#FFFBEB;color:#B45309;border:1px solid #FDE68A;}
+  .section{margin-top:20px;border:1px solid #DDE3EC;border-radius:8px;overflow:hidden;}
+  .section-title{background:#F8FAFC;padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#8A9BB0;border-bottom:1px solid #DDE3EC;}
+  .section-body{padding:16px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .field label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:#8A9BB0;margin-bottom:3px;display:block;}
+  .field .value{font-size:13px;color:#0F1D2E;font-weight:500;}
+  .motif{background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:14px 16px;color:#B91C1C;font-size:13px;line-height:1.6;}
+  .footer{margin-top:32px;padding-top:16px;border-top:2px solid #DDE3EC;display:flex;justify-content:space-between;font-size:11px;color:#8A9BB0;}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+</style></head><body><div class="page">
+<div class="header">
+  <div style="font-size:16px;font-weight:800;letter-spacing:0.08em;">SOFITEX — CIL</div>
+  <h1>Décision de Conformité — Déclaration #${d.idDeclaration}</h1>
+  <p>Généré le : ${date}</p>
+  <span class="badge ${isConforme ? "badge-green" : isRejete ? "badge-red" : d.statut === "EN_VERIFICATION_CIL" ? "badge-purple" : "badge-yellow"}">${statLabel[d.statut] || d.statut || "—"}</span>
+</div>
+<div class="section">
+  <div class="section-title">Informations générales</div>
+  <div class="section-body"><div class="grid">
+    <div class="field"><label>Type de déclaration</label><div class="value">${typeLabel[d.typeDeclaration] || d.typeDeclaration || "—"}</div></div>
+    <div class="field"><label>Date de soumission</label><div class="value">${d.dateSoumission || "—"}</div></div>
+    <div class="field"><label>DPO déclarant</label><div class="value">${d.dpoNomPrenom || "—"}</div></div>
+    <div class="field"><label>Secteur</label><div class="value">${d.secteur || "—"}</div></div>
+  </div></div>
+</div>
+<div class="section"><div class="section-title">Responsable & Contact</div><div class="section-body"><div class="grid">
+  <div class="field"><label>Responsable</label><div class="value">${d.responsableDeclaration || "—"}</div></div>
+  <div class="field"><label>Contact confidentialité</label><div class="value">${d.contactConfidentialite || "—"}</div></div>
+  <div class="field"><label>Date de mise en œuvre</label><div class="value">${d.dateMiseEnOeuvre || "—"}</div></div>
+  <div class="field"><label>Lieu de stockage</label><div class="value">${d.lieuStockage || "—"}</div></div>
+</div></div></div>
+<div class="section"><div class="section-title">Données traitées</div><div class="section-body"><div class="grid">
+  <div class="field"><label>Catégories de données</label><div class="value">${d.categoriesDonnees || "—"}</div></div>
+  <div class="field"><label>Origine des données</label><div class="value">${d.origineDonnees || "—"}</div></div>
+  <div class="field"><label>Durée de conservation</label><div class="value">${d.dureeConservation || "—"}</div></div>
+  <div class="field"><label>Transfert étranger</label><div class="value">${d.transfertPaysEtranger ? "Oui" : "Non"}</div></div>
+</div></div></div>
+<div class="section"><div class="section-title">Sécurité & Accès</div><div class="section-body">
+  <div class="field" style="margin-bottom:10px"><label>Mesures de sécurité</label><div class="value">${d.mesuresSecurite || "—"}</div></div>
+  <div class="grid">
+    <div class="field"><label>Catégories d'accès</label><div class="value">${d.categoriesPersonnesAcces || "—"}</div></div>
+    <div class="field"><label>Sous-traitance</label><div class="value">${d.recoursSousTraitant ? "Oui" : "Non"}</div></div>
+  </div>
+</div></div>
+${isRejete && d.motifRejetCil ? `<div class="section"><div class="section-title">Motif de non-conformité (CIL)</div><div class="section-body"><div class="motif">${d.motifRejetCil}</div></div></div>` : ""}
+<div class="footer">
+  <span>SOFITEX — Système de Collecte des Données Personnelles</span>
+  <span>Document confidentiel — DECL-${d.idDeclaration}</span>
+</div>
+</div><script>window.onload=()=>window.print();</script></body></html>`;
+  const win = window.open("", "_blank");
+  win.document.write(html);
+  win.document.close();
+};
+
+// ═══════════════════════════════════════════════════════
 //  MODALE : VOIR + VALIDER / REJETER LA CONFORMITÉ
+//  (lecture seule automatique si la déclaration n'est plus
+//  au statut EN_VERIFICATION_CIL — cas de l'Historique)
 // ═══════════════════════════════════════════════════════
 const ModalDeclaration = ({ apiKey, declaration, onClose, onValider, onRejeter }) => {
   const [motif, setMotif] = useState("");
@@ -507,6 +589,22 @@ const ModalDeclaration = ({ apiKey, declaration, onClose, onValider, onRejeter }
           )}
           {!loadingDetail && (
             <>
+              {d.statut === "REJETEE_CIL" && d.motifRejetCil && (
+                <div style={{ marginBottom: 16, padding: "14px 16px", background: T.redBg, border: `1px solid ${T.redBorder}`, borderRadius: 10, display: "flex", gap: 10, alignItems: "flex-start" }}>
+                  <XCircle size={16} color={T.red} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: T.red, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Motif de non-conformité</div>
+                    <div style={{ fontSize: 13, color: T.textPrimary, lineHeight: 1.55 }}>{d.motifRejetCil}</div>
+                  </div>
+                </div>
+              )}
+              {d.statut === "VALIDEE_CIL" && (
+                <div style={{ marginBottom: 16, padding: "12px 16px", background: T.greenBg, border: `1px solid ${T.greenBorder}`, borderRadius: 10, display: "flex", gap: 10, alignItems: "center" }}>
+                  <CheckCircle2 size={16} color={T.green} />
+                  <span style={{ fontSize: 13, color: T.textPrimary }}>Cette déclaration a été validée conforme par la CIL.</span>
+                </div>
+              )}
+
               <SectionBloc icon={User} color={T.blue} bg={T.blueBg} border={T.blueBorder} title="Identification & Responsable">
                 <DetailRow label="Responsable déclaration" value={d.responsableDeclaration} />
                 <DetailRow label="Contact confidentialité" value={d.contactConfidentialite} />
@@ -599,7 +697,8 @@ const ModalDeclaration = ({ apiKey, declaration, onClose, onValider, onRejeter }
         )}
 
         {!canAct && (
-          <div style={{ padding: "14px 24px 20px", borderTop: `1px solid ${T.cardBorder}`, display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ padding: "14px 24px 20px", borderTop: `1px solid ${T.cardBorder}`, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <Btn onClick={() => exportDeclarationCilPDF(d)}><Download size={13} /> Exporter en PDF</Btn>
             <Btn onClick={onClose}>Fermer</Btn>
           </div>
         )}
@@ -666,42 +765,60 @@ const DeclarationCard = ({ d, onView }) => {
 };
 
 // ═══════════════════════════════════════════════════════
-//  CARTE HISTORIQUE (HistoriqueDeclarationResponse — champs réduits)
+//  CARTE HISTORIQUE (HistoriqueDeclarationResponse) —
+//  une seule ligne par déclaration : validée conforme OU
+//  rejetée avec motif. Actions : Voir le détail + Export PDF.
 // ═══════════════════════════════════════════════════════
-const HistoriqueCard = ({ h }) => (
-  <Card style={{ padding: 0, overflow: "hidden" }}>
-    <div style={{ display: "flex", alignItems: "stretch" }}>
-      <div style={{
-        width: 4, flexShrink: 0,
-        background: h.statut === "VALIDEE_CIL" ? T.green : h.statut === "REJETEE_CIL" ? T.red : T.gray,
-      }} />
-      <div style={{ flex: 1, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 9, background: T.grayBg, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <TypeIcon type={h.typeDeclaration} size={16} />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>
-              Déclaration #{h.idDeclaration} {h.intitule ? `— ${h.intitule}` : ""}
+const HistoriqueCard = ({ h, onView, onExport, exporting }) => {
+  const isConforme = h.statut === "VALIDEE_CIL";
+  const isRejete = h.statut === "REJETEE_CIL";
+  return (
+    <Card style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "stretch" }}>
+        <div style={{ width: 4, flexShrink: 0, background: isConforme ? T.green : isRejete ? T.red : T.gray }} />
+        <div style={{ flex: 1, padding: "14px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ width: 34, height: 34, borderRadius: 9, background: T.grayBg, border: `1px solid ${T.cardBorder}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <TypeIcon type={h.typeDeclaration} size={16} />
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>
+                  Déclaration #{h.idDeclaration} {h.intitule ? `— ${h.intitule}` : ""}
+                </div>
+                <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+                  {h.responsableDeclaration || "—"} · {h.dateDeclaration || "—"}
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
-              {h.responsableDeclaration || "—"} · {h.dateDeclaration || "—"}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Badge type={h.statut} />
+              <Btn onClick={() => onView(h)} style={{ fontSize: 11, padding: "5px 10px" }}>
+                <Eye size={12} /> Voir
+              </Btn>
+              <Btn onClick={() => onExport(h)} disabled={exporting} style={{ fontSize: 11, padding: "5px 10px" }}>
+                {exporting ? <><Spinner color={T.textSecondary} size={11} /> …</> : <><Download size={12} /> PDF</>}
+              </Btn>
             </div>
           </div>
+          {isRejete && h.motifRejetCil && (
+            <div style={{ marginTop: 10, padding: "9px 12px", background: T.redBg, border: `1px solid ${T.redBorder}`, borderRadius: 8, fontSize: 12, color: T.red, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span><strong>Motif : </strong>{h.motifRejetCil}</span>
+            </div>
+          )}
         </div>
-        <Badge type={h.statut} />
       </div>
-    </div>
-  </Card>
-);
+    </Card>
+  );
+};
 
 // ═══════════════════════════════════════════════════════
 //  SECTION : TABLEAU DE BORD
 // ═══════════════════════════════════════════════════════
-const SectionDashboard = ({ aVerifier, historique, plaintes, setSection }) => {
+const SectionDashboard = ({ aVerifier, historique, setSection }) => {
   const conformes = historique.filter(h => h.statut === "VALIDEE_CIL");
   const nonConformes = historique.filter(h => h.statut === "REJETEE_CIL");
-  const plaintesOuvertes = plaintes.filter(p => p.statutPlainte !== "CLOTUREE");
 
   const allDecls = [...aVerifier, ...historique];
   const typeStats = ["NORMALE", "COLLECTE_SITE", "VIDEO_SURVEILLANCE", "AUTORISATION"].map(t => ({
@@ -713,7 +830,6 @@ const SectionDashboard = ({ aVerifier, historique, plaintes, setSection }) => {
     { label: "À vérifier", value: aVerifier.length, sub: "conformité en attente", color: T.purple, bg: T.purpleBg, border: T.purpleBorder, Icon: Clock, section: "a-verifier" },
     { label: "Conformes", value: conformes.length, sub: "validées par la CIL", color: T.green, bg: T.greenBg, border: T.greenBorder, Icon: CheckCircle2, section: "historique" },
     { label: "Non conformes", value: nonConformes.length, sub: "renvoyées pour correction", color: T.red, bg: T.redBg, border: T.redBorder, Icon: XCircle, section: "historique" },
-    { label: "Plaintes ouvertes", value: plaintesOuvertes.length, sub: "en attente du DPO", color: T.orange, bg: T.orangeBg, border: T.orangeBorder, Icon: ShieldAlert, section: "plaintes" },
   ];
 
   return (
@@ -723,7 +839,7 @@ const SectionDashboard = ({ aVerifier, historique, plaintes, setSection }) => {
         subtitle={`Accès externe — ${new Date().toLocaleDateString("fr-FR", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 14, marginBottom: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 14, marginBottom: 20 }}>
         {stats.map((s, i) => (
           <Card key={i} onClick={() => setSection(s.section)} className="card-hover" style={{ padding: "18px 20px", position: "relative", overflow: "hidden", cursor: "pointer" }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: s.color, borderRadius: "12px 12px 0 0" }} />
@@ -916,11 +1032,15 @@ const SectionAVerifier = ({ apiKey, declarations, setDeclarations, onHistoriqueC
 
 // ═══════════════════════════════════════════════════════
 //  SECTION : HISTORIQUE
+//  Une seule entrée par déclaration : conforme ou rejetée
+//  (avec motif). Voir le détail complet + exporter en PDF.
 // ═══════════════════════════════════════════════════════
 const SectionHistorique = ({ apiKey, historique, setHistorique }) => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [filterStatut, setFilterStatut] = useState("all");
+  const [selected, setSelected] = useState(null);
+  const [exportingId, setExportingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -944,8 +1064,35 @@ const SectionHistorique = ({ apiKey, historique, setHistorique }) => {
     return matchSearch && matchStatut;
   });
 
+  // Ouvre le détail complet d'une déclaration depuis l'historique.
+  // ModalDeclaration passe automatiquement en lecture seule car le statut
+  // (VALIDEE_CIL / REJETEE_CIL) n'est plus EN_VERIFICATION_CIL.
+  const handleView = (h) => setSelected({ idDeclaration: h.idDeclaration, statut: h.statut });
+
+  const handleExport = async (h) => {
+    setExportingId(h.idDeclaration);
+    try {
+      const r = await fetch(`${BASE}/declarations/${h.idDeclaration}`, { headers: authH(apiKey) });
+      const full = r.ok ? await r.json() : h;
+      exportDeclarationCilPDF(full);
+    } catch {
+      exportDeclarationCilPDF(h);
+    } finally {
+      setExportingId(null);
+    }
+  };
+
   return (
     <div className="slide-in">
+      {selected && (
+        <ModalDeclaration
+          apiKey={apiKey}
+          declaration={selected}
+          onClose={() => setSelected(null)}
+          onValider={() => {}}
+          onRejeter={() => {}}
+        />
+      )}
       <PageHeader
         title="Historique des vérifications"
         subtitle={`${historique.length} déclaration(s) traitée(s) avec cette clé API`}
@@ -994,155 +1141,19 @@ const SectionHistorique = ({ apiKey, historique, setHistorique }) => {
       )}
       {!loading && filtered.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {filtered.map(h => <HistoriqueCard key={h.idHistorique || h.idDeclaration} h={h} />)}
+          {filtered.map(h => (
+            <HistoriqueCard
+              key={h.idHistorique || h.idDeclaration}
+              h={h}
+              onView={handleView}
+              onExport={handleExport}
+              exporting={exportingId === h.idDeclaration}
+            />
+          ))}
         </div>
       )}
       {!loading && filtered.length === 0 && historique.length > 0 && (
         <Card style={{ padding: 40, textAlign: "center" }}><p style={{ fontSize: 13, color: T.textMuted }}>Aucun résultat pour ce filtre.</p></Card>
-      )}
-    </div>
-  );
-};
-
-// ═══════════════════════════════════════════════════════
-//  SECTION : PLAINTES CIL → DPO
-// ═══════════════════════════════════════════════════════
-const SectionPlaintes = ({ apiKey, plaintes, setPlaintes }) => {
-  const [loading, setLoading] = useState(false);
-  const [showForm, setShowForm] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [form, setForm] = useState({ objetPlainte: "", descriptionPlainte: "", lieu: "" });
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await fetch(`${BASE}/plaintes`, { headers: authH(apiKey) });
-      if (!r.ok) throw new Error(`Erreur ${r.status}`);
-      setPlaintes(await r.json());
-    } catch (e) { toast.error(e.message); }
-    finally { setLoading(false); }
-  }, [apiKey, setPlaintes]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.objetPlainte.trim() || !form.descriptionPlainte.trim()) {
-      toast.error("L'objet et la description sont obligatoires");
-      return;
-    }
-    setSending(true);
-    try {
-      const r = await fetch(`${BASE}/plaintes`, {
-        method: "POST",
-        headers: authH(apiKey),
-        body: JSON.stringify(form),
-      });
-      if (!r.ok) {
-        const e2 = await r.json().catch(() => ({}));
-        throw new Error(e2.message || `Erreur ${r.status}`);
-      }
-      const created = await r.json();
-      setPlaintes(prev => [created, ...prev]);
-      setForm({ objetPlainte: "", descriptionPlainte: "", lieu: "" });
-      setShowForm(false);
-      toast.success("Plainte envoyée au DPO");
-    } catch (e) {
-      toast.error(e.message);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div className="slide-in">
-      <PageHeader
-        title="Plaintes vers le DPO"
-        subtitle={`${plaintes.length} plainte(s) émise(s) avec cette clé API`}
-      >
-        <Btn variant="outline" onClick={load}><RefreshCw size={13} /> Rafraîchir</Btn>
-        <Btn variant="primary" onClick={() => setShowForm(v => !v)}>
-          <Send size={13} /> {showForm ? "Fermer" : "Nouvelle plainte"}
-        </Btn>
-      </PageHeader>
-
-      {showForm && (
-        <Card style={{ padding: 20, marginBottom: 20 }}>
-          <form onSubmit={handleSubmit}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 5 }}>Objet *</label>
-                <input
-                  value={form.objetPlainte}
-                  onChange={e => setForm(f => ({ ...f, objetPlainte: e.target.value }))}
-                  placeholder="Ex : Non-respect des délais de conservation"
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.cardBorder}`, fontSize: 13, color: T.textPrimary, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 5 }}>Lieu concerné</label>
-                <input
-                  value={form.lieu}
-                  onChange={e => setForm(f => ({ ...f, lieu: e.target.value }))}
-                  placeholder="Ex : Siège Bobo-Dioulasso"
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.cardBorder}`, fontSize: 13, color: T.textPrimary, outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                />
-              </div>
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 5 }}>Description détaillée *</label>
-              <textarea
-                value={form.descriptionPlainte}
-                onChange={e => setForm(f => ({ ...f, descriptionPlainte: e.target.value }))}
-                rows={4}
-                placeholder="Décrivez précisément le manquement constaté…"
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.cardBorder}`, fontSize: 13, color: T.textPrimary, resize: "vertical", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-              />
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <Btn onClick={() => setShowForm(false)}>Annuler</Btn>
-              <Btn type="submit" variant="primary" disabled={sending}>
-                {sending ? <><Spinner size={12} /> Envoi…</> : <><Send size={13} /> Envoyer au DPO</>}
-              </Btn>
-            </div>
-          </form>
-        </Card>
-      )}
-
-      {loading && <Card style={{ padding: 40, textAlign: "center" }}><div style={{ color: T.textMuted, fontSize: 13 }}>Chargement…</div></Card>}
-      {!loading && plaintes.length === 0 && (
-        <Card style={{ padding: 48, textAlign: "center" }}>
-          <MessageSquareWarning size={36} color={T.textMuted} style={{ display: "block", margin: "0 auto 12px", opacity: 0.3 }} />
-          <p style={{ fontSize: 13, color: T.textMuted }}>Aucune plainte émise pour le moment.</p>
-        </Card>
-      )}
-      {!loading && plaintes.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {plaintes.map(p => (
-            <Card key={p.idPlainte} style={{ padding: 0, overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "stretch" }}>
-                <div style={{ width: 4, flexShrink: 0, background: p.statutPlainte === "CLOTUREE" ? T.green : p.statutPlainte === "EN_INSTRUCTION" ? T.blue : T.yellow }} />
-                <div style={{ flex: 1, padding: "14px 18px" }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 6, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: T.textPrimary }}>{p.objetPlainte}</div>
-                    <Badge type={p.statutPlainte} />
-                  </div>
-                  <p style={{ fontSize: 12, color: T.textSecondary, lineHeight: 1.5, marginBottom: 8 }}>{p.descriptionPlainte}</p>
-                  <div style={{ fontSize: 11, color: T.textMuted, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                    <span>Émise le {p.datePlainte}</span>
-                    {p.lieu && <span>· {p.lieu}</span>}
-                    {p.dpoNomComplet && <span>· DPO : {p.dpoNomComplet}</span>}
-                  </div>
-                  {p.decisionCil !== undefined && p.decisionCil && (
-                    <div style={{ marginTop: 10, padding: "10px 12px", background: T.grayBg, borderRadius: 8, fontSize: 12, color: T.textSecondary }}>
-                      <strong style={{ color: T.textPrimary }}>Réponse : </strong>{p.decisionCil}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
       )}
     </div>
   );
@@ -1158,7 +1169,6 @@ export default function Tb_CIL() {
 
   const [aVerifier, setAVerifier] = useState([]);
   const [historique, setHistorique] = useState([]);
-  const [plaintes, setPlaintes] = useState([]);
   const [histLoadTrigger, setHistLoadTrigger] = useState(0);
 
   // Chargement initial une fois connecté
@@ -1173,10 +1183,6 @@ export default function Tb_CIL() {
         const r2 = await fetch(`${BASE}/declarations/historique`, { headers: authH(apiKey) });
         if (r2.ok) setHistorique(await r2.json());
       } catch { }
-      try {
-        const r3 = await fetch(`${BASE}/plaintes`, { headers: authH(apiKey) });
-        if (r3.ok) setPlaintes(await r3.json());
-      } catch { }
     };
     load();
   }, [apiKey]);
@@ -1188,14 +1194,11 @@ export default function Tb_CIL() {
     setSection("dashboard");
     setAVerifier([]);
     setHistorique([]);
-    setPlaintes([]);
   };
 
   if (!apiKey) {
     return <EcranConnexion onConnect={setApiKey} />;
   }
-
-  const plaintesOuvertesCount = plaintes.filter(p => p.statutPlainte !== "CLOTUREE").length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh", fontFamily: "'Instrument Sans', 'DM Sans', system-ui, sans-serif", overflow: "hidden" }}>
@@ -1220,14 +1223,12 @@ export default function Tb_CIL() {
           active={section} setActive={setSection}
           collapsed={collapsed}
           pendingCount={aVerifier.length}
-          plaintesOuvertesCount={plaintesOuvertesCount}
         />
         <main style={{ flex: 1, overflow: "auto", padding: "24px 28px", background: T.mainBg }}>
           {section === "dashboard" && (
             <SectionDashboard
               aVerifier={aVerifier}
               historique={historique}
-              plaintes={plaintes}
               setSection={setSection}
             />
           )}
@@ -1245,13 +1246,6 @@ export default function Tb_CIL() {
               historique={historique}
               setHistorique={setHistorique}
               key={`hist-${histLoadTrigger}`}
-            />
-          )}
-          {section === "plaintes" && (
-            <SectionPlaintes
-              apiKey={apiKey}
-              plaintes={plaintes}
-              setPlaintes={setPlaintes}
             />
           )}
         </main>
